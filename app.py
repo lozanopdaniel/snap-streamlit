@@ -65,7 +65,7 @@ with tab1:
     if st.session_state['df'] is not None:
         df = st.session_state['df']
         # Prepare data
-        
+
         # Handle 'Title' and 'Description' columns optionally
         if 'Title' in df.columns:
             df['Title'] = df['Title'].fillna('')
@@ -181,6 +181,22 @@ with tab2:
             st.subheader("Topic Hierarchy Visualization")
             fig3 = topic_model.visualize_hierarchy()
             st.plotly_chart(fig3)
+
+            # Attempt to visualize topics per class
+            st.subheader("Topics per Class Visualization")
+            available_columns = df.columns.tolist()
+            if len(available_columns) > 0:
+                class_column = st.selectbox("Select a column to use as classes for Topics per Class visualization:", available_columns)
+                if class_column:
+                    try:
+                        classes = df[class_column].astype(str).tolist()
+                        topics_per_class = topic_model.topics_per_class(texts_cleaned, classes=classes)
+                        fig4 = topic_model.visualize_topics_per_class(topics_per_class)
+                        st.plotly_chart(fig4)
+                    except Exception as e:
+                        st.warning("Could not generate Topics per Class visualization.")
+            else:
+                st.warning("No columns found in data to use for Topics per Class visualization.")
     else:
         st.warning("Please upload a data file to proceed.")
 
