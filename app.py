@@ -10,7 +10,6 @@ from datetime import datetime
 import base64
 import re
 import pickle
-import torch
 
 # Import necessary libraries for embeddings, clustering, and summarization
 from sentence_transformers import SentenceTransformer
@@ -57,7 +56,7 @@ else:
 tab1, tab2, tab3 = st.tabs(["Semantic Search", "Clustering", "Summarization"])
 
 # Device configuration for PyTorch
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = 'cpu'
 
 # Semantic Search Tab
 with tab1:
