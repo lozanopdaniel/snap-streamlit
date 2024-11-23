@@ -78,15 +78,12 @@ with tab1:
 
         # Load or generate embeddings
         embeddings_file = 'embeddings.pkl'
-        if os.path.exists(embeddings_file):
-            with open(embeddings_file, 'rb') as f:
-                embeddings = pickle.load(f)
-        else:
-            st.write("Generating embeddings...")
-            model = SentenceTransformer('all-MiniLM-L6-v2').to(device)
-            embeddings = model.encode(df['text_for_embedding'].tolist(), show_progress_bar=True, device=device)
-            with open(embeddings_file, 'wb') as f:
-                pickle.dump(embeddings, f)
+
+        st.write("Generating embeddings...")
+        model = SentenceTransformer('all-MiniLM-L6-v2').to(device)
+        embeddings = model.encode(df['text_for_embedding'].tolist(), show_progress_bar=True, device=device)
+        with open(embeddings_file, 'wb') as f:
+            pickle.dump(embeddings, f)
         st.session_state['embeddings'] = embeddings
 
         # Input query
