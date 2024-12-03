@@ -65,13 +65,15 @@ def load_uploaded_dataset(uploaded_file):
 
 if dataset_option == 'PRMS 2022+2023 QAed':
     # Load the default dataset
-    default_dataset_path = 'input/export_data_table_results_20240312_160222CET.xlsx'
+    default_dataset_path = os.path.join(os.path.dirname(__file__), 'input', 'export_data_table_results_20240312_160222CET.xlsx')
     df = load_default_dataset(default_dataset_path)
     if df is not None:
         st.session_state['df'] = df.copy()
         st.session_state['using_default_dataset'] = True
         st.write("Using default dataset:")
         st.write(df.head())
+    else:
+        st.warning("Please ensure the default dataset exists in the 'input' directory.")
 else:
     # User uploads dataset
     uploaded_file = st.sidebar.file_uploader("Upload your Excel file", type=["xlsx"])
@@ -122,11 +124,12 @@ with tab1:
                 return embeddings
 
         # Load or generate embeddings
-        embeddings_file = 'embeddings.pkl'
         if st.session_state.get('using_default_dataset'):
+            embeddings_file = os.path.join(os.path.dirname(__file__), 'embeddings.pkl')
             embeddings = load_or_compute_embeddings(df['text_for_embedding'].tolist(), embeddings_file)
         else:
-            embeddings = load_or_compute_embeddings(df['text_for_embedding'].tolist(), 'uploaded_embeddings.pkl')
+            embeddings_file = os.path.join(os.path.dirname(__file__), 'uploaded_embeddings.pkl')
+            embeddings = load_or_compute_embeddings(df['text_for_embedding'].tolist(), embeddings_file)
 
         st.session_state['embeddings'] = embeddings
 
@@ -216,7 +219,10 @@ with tab2:
                         return embeddings_clustering
 
                 # Load or generate embeddings for clustering
-                embeddings_file_clustering = 'embeddings_clustering.pkl' if st.session_state.get('using_default_dataset') else 'uploaded_embeddings_clustering.pkl'
+                if st.session_state.get('using_default_dataset'):
+                    embeddings_file_clustering = os.path.join(os.path.dirname(__file__), 'embeddings_clustering.pkl')
+                else:
+                    embeddings_file_clustering = os.path.join(os.path.dirname(__file__), 'uploaded_embeddings_clustering.pkl')
                 embeddings_clustering = load_or_compute_clustering_embeddings(texts_cleaned, embeddings_file_clustering)
 
             st.session_state['embeddings_clustering'] = embeddings_clustering
