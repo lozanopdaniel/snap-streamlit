@@ -10,6 +10,7 @@ from datetime import datetime
 import base64
 import re
 import pickle
+import concurrent.futures  # Import for parallel processing
 
 # Import necessary libraries for embeddings, clustering, and summarization
 from sentence_transformers import SentenceTransformer
@@ -135,7 +136,7 @@ with tab1:
 
         # Input query
         query = st.text_input("Enter your search query:")
-        similarity_threshold = st.slider("Similarity threshold", 0.0, 1.0, 0.5)
+        similarity_threshold = st.slider("Similarity threshold", 0.0, 1.0, 0.35)
 
         if st.button("Search"):
             if query:
@@ -295,11 +296,32 @@ with tab3:
 
             # Define objectives for each impact area
             impact_area_objectives = {
-                'Nutrition': "Your objectives related to Nutrition...",
-                'Poverty Reduction': "Your objectives related to Poverty Reduction...",
-                'Gender': "Your objectives related to Gender...",
-                'Climate Change': "Your objectives related to Climate Change...",
-                'Environmental Biodiversity': "Your objectives related to Environmental Biodiversity..."
+                'Nutrition': """
+                    Focusing on evidence and options for improving diets and human health through food systems outcomes, policy research, and technical and institutional innovations for making healthy sustainable diets affordable, targeting consumer behavior, local urban and informal markets, and social protection. 
+                    Accelerated innovation in agronomy, livestock, and fisheries management to increase and diversify food supply and to manage zoonotic diseases, food safety, and anti-microbial resistance. 
+                    Research advanced on a wider range of foods and farming systems, including vegetables, insects, and urban farming, with a focus on affordable diets and perishable foods. 
+                    Dietary diversity, quality, and resilience underpinned by custodianship and distribution of a wide variety of genetic materials of crops and their wild relatives, and livestock; breeding of nutrient-dense legumes, roots, tubers, bananas and cereals, including biofortification and market relevant traits and; breeding of more productive livestock and fish to increase the supply of nutrient-dense animal source foods.
+                """,
+                'Poverty Reduction': """
+                    Policy research and engagements in all segments of food systems to help improve access to productive resources, knowledge, finance, and markets to foster inclusion and increase effectiveness of agricultural policies, social protection programs, and off-farm employment opportunities. 
+                    Solutions for strengthening resilience, risk management, and competitiveness to improve income-generating opportunities and sustainability of small-scale agriculture and agrifood chain participation, with a focus on women and youth. 
+                    Adoption of adapted and resilient varieties and breeds, with turnover of crop varieties, leading to higher or more resilient crop yields and livestock and fish productivity, in turn driving higher and more stable farmer incomes, access to new markets, and poverty reduction among farmers and value chain participants.
+                """,
+                'Gender': """
+                    Gender-transformative approaches, communication, and advocacy that lead to empowerment of women and youth, encourage entrepreneurship, and address the socio-political barriers to social inclusion in food, land, and water systems. 
+                    Interventions designed to enable equal access to innovations and capacity development, as well as financial, informational, and legal services for women and young people to enable them to shape agrifood systems. 
+                    Supply of improved varieties and breeds that are affordable and accessible to women, youth, and disadvantaged social groups, meeting their specific market requirements and preferences.
+                """,
+                'Climate Change': """
+                    Scientific evidence, climate-smart solutions, and innovative finance that feed into local, national, regional, and global processes governing land use, land restoration, forest conservation, and resilience to floods and droughts, contributing to climate action, peace, and security. 
+                    Co-development of production systems and portfolios of practices, adapted to the local needs of small-scale producers to enhance their adaptive capacity while reducing emissions; provision of affordable and accessible climate-informed services, particularly using digital tools. 
+                    Adaptation to a changing climate through adapted breeds and varieties, for example heat tolerant livestock breeds, strains and crosses, drought-tolerant maize, and heat-tolerant beans; inclusion of long-term accessions in genebanks to provide solutions for future climates.
+                """,
+                'Environmental Biodiversity': """
+                    Use of modern digital tools to bring together state-of-the-art Earth system observation and big data analysis to inform codesign of global solutions and national policies for staying within planetary boundaries on water use, nutrient use, land use change, and biodiversity. 
+                    Cost-effective improved management of water, soil, nutrients, and biodiversity in crop, livestock, and fisheries systems, coupled with higher-order landscape considerations as well as circular economy and agroecological approaches. 
+                    Biodiversity function of genebanks; breeding to reduce environmental footprint, e.g. less water or pesticides, to help stay within planetary boundaries and to reduce local water stress, pollution, biodiversity loss, and undesirable land use change.
+                """
             }
             objectives = impact_area_objectives.get(impact_area, "")
 
@@ -322,11 +344,30 @@ with tab3:
                     st.error("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
                 else:
                     llm = ChatOpenAI(api_key=openai_api_key, model_name='gpt-4o')
+
+                    # First, generate the high-level general summary
+                    all_texts = df['text'].tolist()
+                    combined_text = " ".join(all_texts)
+                    # Prepare prompts
+                    user_prompt = f"**Objectives**: {objectives}\n**Text to summarize**: {combined_text}"
+                    system_message = SystemMessagePromptTemplate.from_template(system_prompt)
+                    human_message = HumanMessagePromptTemplate.from_template("{user_prompt}")
+                    chat_prompt = ChatPromptTemplate.from_messages([system_message, human_message])
+                    chain = LLMChain(llm=llm, prompt=chat_prompt)
+                    response = chain.run(user_prompt=user_prompt)
+                    high_level_summary = response.strip()
+                    # Display the high-level summary
+                    st.write("### High-Level Summary:")
+                    st.write(high_level_summary)
+
+                    # Now generate summaries per cluster/topic in parallel
                     summaries = []
-                    grouped = df.groupby('Topic')
+                    grouped_list = list(df.groupby('Topic'))
+                    total_topics = len(grouped_list)
                     progress_bar = st.progress(0)
-                    total_topics = len(grouped)
-                    for idx, (topic, group) in enumerate(grouped):
+
+                    def generate_summary_per_topic(topic_group_tuple):
+                        topic, group = topic_group_tuple
                         all_text = " ".join(group['text'].tolist())
                         # Prepare prompts
                         user_prompt = f"**Objectives**: {objectives}\n**Text to summarize**: {all_text}"
@@ -336,11 +377,17 @@ with tab3:
                         chain = LLMChain(llm=llm, prompt=chat_prompt)
                         response = chain.run(user_prompt=user_prompt)
                         summary = response.strip()
-                        summaries.append({'Topic': topic, 'Summary': summary})
-                        progress_bar.progress((idx + 1) / total_topics)
+                        return {'Topic': topic, 'Summary': summary}
+
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+                        futures = {executor.submit(generate_summary_per_topic, item): item[0] for item in grouped_list}
+                        for idx, future in enumerate(concurrent.futures.as_completed(futures)):
+                            result = future.result()
+                            summaries.append(result)
+                            progress_bar.progress((idx + 1) / total_topics)
                     progress_bar.empty()
                     summary_df = pd.DataFrame(summaries)
-                    st.write("Summaries:")
+                    st.write("### Summaries per Cluster:")
                     st.write(summary_df)
                     # Optionally save summaries
                     csv = summary_df.to_csv(index=False)
