@@ -31,18 +31,27 @@ device = 'cpu'
 
 # Initialize NLTK resources
 def init_nltk_resources():
-    nltk_data_dir = r'C:\Users\JLBKMVE\AppData\Roaming\nltk_data'
-    nltk.data.path.append(nltk_data_dir)
-    # Check if 'stopwords' is downloaded
+    # Don't hardcode Windows paths or rely on local dirs. Just let NLTK use default paths.
+    # It's safer to rely on the default NLTK data directories on Streamlit Cloud.
+    
+    # Download stopwords if not found
     try:
         nltk.data.find('corpora/stopwords')
     except LookupError:
-        nltk.download('stopwords', download_dir=nltk_data_dir)
-    # Check if 'punkt' is downloaded
+        nltk.download('stopwords')
+    
+    # Download punkt if not found
     try:
         nltk.data.find('tokenizers/punkt')
     except LookupError:
-        nltk.download('punkt', download_dir=nltk_data_dir)
+        nltk.download('punkt')
+
+    # Download punkt_tab if not found (newer NLTK versions require this)
+    try:
+        nltk.data.find('tokenizers/punkt_tab')
+    except LookupError:
+        nltk.download('punkt_tab')
+
 
 init_nltk_resources()
 
